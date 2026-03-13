@@ -136,6 +136,18 @@ class HyperXUsbDriver {
     }
   }
 
+  /** Update any number of keys in one USB send */
+  setKeys(updates) {
+    // updates: [{ index, r, g, b }, ...]
+    for (const { index, r, g, b } of updates) {
+      if (index >= 0 && index < NUM_LEDS) {
+        this.ledState[index] = { r, g, b };
+      }
+    }
+    this._sendColorBuffer(buildColorBuffer(this.ledState));
+    this._startKeepAlive();
+  }
+
   /** Set all keys to one color */
   setAll({ r, g, b }) {
     const leds = Array.from({ length: NUM_LEDS }, () => ({ r, g, b }));

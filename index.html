@@ -62,8 +62,18 @@
       color: #666;
       white-space: nowrap;
       overflow: hidden;
-      cursor: default;
+      cursor: pointer;
       flex-shrink: 0;
+    }
+
+    .key:hover {
+      border-top-color: #444;
+      border-color: #3a3a3a;
+    }
+
+    .key.selected {
+      box-shadow: 0 0 0 2px #fff;
+      z-index: 1;
     }
 
     /* ── Spacer between key groups (e.g. Esc ↔ F1) ── */

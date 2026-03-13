@@ -43,6 +43,15 @@ ipcMain.handle('set-key', async (_, { index, rgb }) => {
   }
 });
 
+ipcMain.handle('set-keys', (_, updates) => {
+  try {
+    driver.setKeys(updates);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('diagnose', () => driver.diagnose());
 
 app.whenReady().then(createWindow);

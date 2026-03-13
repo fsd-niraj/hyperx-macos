@@ -187,6 +187,147 @@ keyboard.appendChild(buildSection(MAIN_ROWS));
 keyboard.appendChild(buildSection(NAV_ROWS));
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Selection + color state
+// ─────────────────────────────────────────────────────────────────────────────
+
+const selectedLeds = new Set();
+const keyColorMap  = new Map(); // led → '#rrggbb'
+
+function getKeyEl(led) {
+  return document.querySelector(`.key[data-led="${led}"]`);
+}
+
+function paintKey(led, hex) {
+  keyColorMap.set(led, hex);
+  const el = getKeyEl(led);
+  if (!el) return;
+  el.style.background = hex;
+  el.style.borderColor = hex;
+  // Auto-contrast label
+  const { r, g, b } = hexToRgb(hex);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  el.style.color = lum > 0.45 ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.45)';
+}
+
+function selectKey(led, el) {
+  selectedLeds.add(led);
+  el.classList.add('selected');
+}
+
+function deselectAll() {
+  selectedLeds.clear();
+  document.querySelectorAll('.key.selected').forEach(k => k.classList.remove('selected'));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Key click handlers
+// ─────────────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.key').forEach(el => {
+  el.addEventListener('click', e => {
+    e.stopPropagation();
+    const led = parseInt(el.dataset.led);
+
+    if (selectedLeds.has(led)) {
+      // Deselect
+      selectedLeds.delete(led);
+      el.classList.remove('selected');
+    } else {
+      // Add to selection and sync picker to this key's current color
+      selectKey(led, el);
+      document.getElementById('color-picker').value = keyColorMap.get(led) || '#000000';
+    }
+  });
+});
+
+// Click on keyboard background → deselect all
+keyboard.addEventListener('click', () => deselectAll());
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Physical key press → toggle selection (same as clicking the key in the UI)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CODE_TO_LED = {
+  // Fn row
+  Escape: 0,
+  F1: 1,  F2: 2,  F3: 3,  F4: 4,
+  F5: 5,  F6: 6,  F7: 7,  F8: 48,
+  F9: 49, F10: 50, F11: 51, F12: 52,
+  PrintScreen: 53, ScrollLock: 54, Pause: 55,
+  // Number row
+  Backquote: 8,
+  Digit1: 9, Digit2: 10, Digit3: 11, Digit4: 12,
+  Digit5: 13, Digit6: 14, Digit7: 15, Digit8: 16,
+  Digit9: 56, Digit0: 57, Minus: 58, Equal: 59, Backspace: 60,
+  Insert: 61, Home: 62, PageUp: 63,
+  // QWERTY row
+  Tab: 17,
+  KeyQ: 18, KeyW: 19, KeyE: 20, KeyR: 21, KeyT: 22,
+  KeyY: 23, KeyU: 24, KeyI: 64, KeyO: 65, KeyP: 66,
+  BracketLeft: 67, BracketRight: 68, Backslash: 69,
+  Delete: 70, End: 71, PageDown: 72,
+  // Home row
+  CapsLock: 25,
+  KeyA: 26, KeyS: 27, KeyD: 28, KeyF: 29, KeyG: 30,
+  KeyH: 31, KeyJ: 32, KeyK: 73, KeyL: 74,
+  Semicolon: 75, Quote: 76, Enter: 77,
+  // Shift row
+  ShiftLeft: 33,
+  KeyZ: 34, KeyX: 35, KeyC: 36, KeyV: 37, KeyB: 38,
+  KeyN: 39, KeyM: 40, Comma: 79, Period: 80, Slash: 81,
+  ShiftRight: 82, ArrowUp: 85,
+  // Bottom row
+  ControlLeft: 41, MetaLeft: 42, AltLeft: 43,
+  Space: 45,
+  AltRight: 86, ControlRight: 88,
+  ArrowLeft: 90, ArrowDown: 91, ArrowRight: 92,
+};
+
+document.addEventListener('keydown', e => {
+  const led = CODE_TO_LED[e.code];
+  if (led === undefined) return;
+
+  e.preventDefault();
+
+  const el = getKeyEl(led);
+  if (!el) return;
+
+  if (selectedLeds.has(led)) {
+    selectedLeds.delete(led);
+    el.classList.remove('selected');
+  } else {
+    selectKey(led, el);
+    document.getElementById('color-picker').value = keyColorMap.get(led) || '#000000';
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Color picker → apply to selected keys
+// ─────────────────────────────────────────────────────────────────────────────
+
+let sendDebounce = null;
+
+document.getElementById('color-picker').addEventListener('input', e => {
+  if (selectedLeds.size === 0) return;
+  const hex = e.target.value;
+
+  // Update visuals immediately
+  for (const led of selectedLeds) paintKey(led, hex);
+
+  // Debounce the USB send so we don't flood while dragging the picker
+  clearTimeout(sendDebounce);
+  sendDebounce = setTimeout(() => sendSelectedKeys(hex), 80);
+});
+
+async function sendSelectedKeys(hex) {
+  if (selectedLeds.size === 0) return;
+  const { r, g, b } = hexToRgb(hex);
+  const updates = [...selectedLeds].map(index => ({ index, r, g, b }));
+  const result = await window.hyperx.setKeys(updates);
+  if (!result.ok) setStatus(result.error, 'error');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Controls
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -198,7 +339,12 @@ function setStatus(msg, type = '') {
 }
 
 document.getElementById('btn-apply-all').onclick = async () => {
-  const rgb = hexToRgb(document.getElementById('color-picker').value);
+  const hex = document.getElementById('color-picker').value;
+  const rgb = hexToRgb(hex);
+  // Paint all keys visually
+  document.querySelectorAll('.key').forEach(el => {
+    paintKey(parseInt(el.dataset.led), hex);
+  });
   const result = await window.hyperx.setAll(rgb);
   result.ok ? setStatus('Applied to all keys.', 'ok') : setStatus(result.error, 'error');
 };
