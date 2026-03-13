@@ -1,5 +1,7 @@
 {
-  "name": "hyperx-macos",
+  "name": "hyperx-ngeunity-macos",
+  "productName": "HyperX NGEUNITY - MacOS",
+  "icon": "assets/icons/logo.png",
   "version": "1.0.0",
   "main": "main.js",
   "scripts": {
