@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Needed to talk to USB/HID devices -->
+    <key>com.apple.security.device.usb</key>
+    <true />
+    <key>com.apple.security.device.hid</key>
+    <true />
+
+    <!-- Required for Electron apps -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true />
+
+    <!-- Enable Hardened Runtime -->
+    <key>com.apple.security.app-sandbox</key>
+    <false />
+    <key>com.apple.security.inherit</key>
+    <false />
+
+    <!-- Access to networking (optional) -->
+    <key>com.apple.security.network.client</key>
+    <true />
+  </dict>
+</plist>

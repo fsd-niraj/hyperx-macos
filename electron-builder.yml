@@ -1,0 +1,17 @@
+appId: com.niraj.hyperxrgb
+productName: HyperX RGB macOS
+mac:
+  category: public.app-category.utilities
+  hardenedRuntime: true
+  entitlements: entitlements.plist
+  entitlementsInherit: entitlements-inherit.plist
+  gatekeeperAssess: false
+  identity: null # IMPORTANT: “null” → ad-hoc signing (no cert needed)
+files:
+  - 'main.js'
+  - 'preload.js'
+  - 'renderer.html'
+  - 'renderer.js'
+  - 'driver/**'
+  - 'node_modules/**'
+  - 'package.json'
