@@ -619,6 +619,9 @@ PRESETS.forEach((color) => {
     CW.setHex(color);
     syncHexUI(color);
     onWheelChange();
+    if (selectedLeds.size === 0) {
+      applyToAll();
+    }
   });
   presetsEl.appendChild(sw);
 });
@@ -643,15 +646,8 @@ document.getElementById('btn-apply-selected').onclick = async () => {
   setStatus('Applied to selected keys.', 'ok');
 };
 
-document.getElementById('btn-apply-all').onclick = async () => {
-  const hex = CW.getHex();
-  document
-    .querySelectorAll('.key')
-    .forEach((el) => paintKey(parseInt(el.dataset.led), hex));
-  const result = await window.hyperx.setAll(hexToRgb(hex));
-  result.ok
-    ? setStatus('Applied to all keys.', 'ok')
-    : setStatus(result.error, 'error');
+document.getElementById('btn-apply-all').onclick = () => {
+  applyToAll();
 };
 
 document.getElementById('btn-diagnose').onclick = async () => {
@@ -669,6 +665,17 @@ document.getElementById('brightness').addEventListener('input', (e) => {
     ? window.hyperx.setBrightness(Number(e.target.value))
     : null;
 });
+
+async function applyToAll() {
+  const hex = CW.getHex();
+  document
+    .querySelectorAll('.key')
+    .forEach((el) => paintKey(parseInt(el.dataset.led), hex));
+  const result = await window.hyperx.setAll(hexToRgb(hex));
+  result.ok
+    ? setStatus('Applied to all keys.', 'ok')
+    : setStatus(result.error, 'error');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LED position map (normalized x/y 0–1) for directional effects
@@ -849,8 +856,14 @@ document.querySelectorAll('.fx-btn').forEach((btn) => {
   });
 });
 
-document.getElementById('fx-speed').addEventListener('input', (e) => {
+const fxSpeedSlider = document.getElementById('fx-speed');
+const fxSpeedValue = document.getElementById('fx-speed-value');
+
+fxSpeedValue.innerText = fxSpeed;
+
+fxSpeedSlider.addEventListener('change', (e) => {
   fxSpeed = Number(e.target.value);
+  fxSpeedValue.innerText = fxSpeed;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,10 +1,17 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8" />
   <title>HyperX Alloy Origins Core</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     body {
       background: #111;
@@ -32,9 +39,20 @@
       border: 1px solid #2a2a2a;
       border-radius: 10px;
       padding: 16px;
+      margin: auto;
     }
-    .kb-section { display: flex; flex-direction: column; gap: 4px; }
-    .kb-row     { display: flex; gap: 4px; height: 38px; }
+
+    .kb-section {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .kb-row {
+      display: flex;
+      gap: 4px;
+      height: 38px;
+    }
 
     .key {
       display: flex;
@@ -54,9 +72,20 @@
       cursor: pointer;
       flex-shrink: 0;
     }
-    .key:hover  { border-color: #3a3a3a; border-top-color: #444; }
-    .key.selected { box-shadow: 0 0 0 2px #fff; z-index: 1; }
-    .kb-gap { flex-shrink: 0; }
+
+    .key:hover {
+      border-color: #3a3a3a;
+      border-top-color: #444;
+    }
+
+    .key.selected {
+      box-shadow: 0 0 0 2px #fff;
+      z-index: 1;
+    }
+
+    .kb-gap {
+      flex-shrink: 0;
+    }
 
     /* ── Controls panel ── */
     .controls {
@@ -100,6 +129,7 @@
       gap: 6px;
       align-content: center;
     }
+
     .swatch {
       width: 28px;
       height: 28px;
@@ -108,7 +138,11 @@
       border: 2px solid transparent;
       transition: border-color 0.1s, transform 0.1s;
     }
-    .swatch:hover { border-color: #fff; transform: scale(1.15); }
+
+    .swatch:hover {
+      border-color: #fff;
+      transform: scale(1.15);
+    }
 
     /* Hex input row */
     .hex-row {
@@ -116,6 +150,7 @@
       align-items: center;
       gap: 8px;
     }
+
     .color-preview {
       width: 22px;
       height: 22px;
@@ -123,6 +158,7 @@
       border: 1px solid #444;
       flex-shrink: 0;
     }
+
     #hex-input {
       background: #222;
       border: 1px solid #333;
@@ -133,7 +169,10 @@
       padding: 4px 8px;
       width: 82px;
     }
-    #hex-input:focus { outline: 1px solid #555; }
+
+    #hex-input:focus {
+      outline: 1px solid #555;
+    }
 
     /* ── Divider ── */
     .v-divider {
@@ -183,20 +222,37 @@
       cursor: pointer;
       text-align: center;
     }
-    button:hover { background: #2a2a2a; border-color: #555; color: #ccc; }
+
+    button:hover {
+      background: #2a2a2a;
+      border-color: #555;
+      color: #ccc;
+    }
+
     button.primary {
       border-color: #555;
       color: #ddd;
     }
-    button.primary:hover { background: #333; border-color: #888; color: #fff; }
+
+    button.primary:hover {
+      background: #333;
+      border-color: #888;
+      color: #fff;
+    }
 
     #status {
       font-size: 11px;
       color: #555;
       min-height: 14px;
     }
-    #status.ok    { color: #4a4; }
-    #status.error { color: #c44; }
+
+    #status.ok {
+      color: #4a4;
+    }
+
+    #status.error {
+      color: #c44;
+    }
 
     /* ── Effects panel ── */
     .effects-panel {
@@ -247,10 +303,13 @@
     }
   </style>
 </head>
+
 <body>
   <h1>HyperX Alloy Origins Core</h1>
 
-  <div class="keyboard" id="keyboard"></div>
+  <div style="display: flex;">
+    <div class="keyboard" id="keyboard"></div>
+  </div>
 
   <div class="controls">
 
@@ -297,10 +356,12 @@
     </div>
     <div class="fx-speed-row">
       <span class="fx-label">Speed</span>
-      <input type="range" id="fx-speed" min="1" max="10" value="5" />
+      <input type="range" id="fx-speed" min="1" max="10" value="5" step="1" />
+      <p id="fx-speed-value"></p>
     </div>
   </div>
 
   <script src="./renderer.js"></script>
 </body>
+
 </html>
