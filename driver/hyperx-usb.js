@@ -136,6 +136,18 @@ class HyperXUsbDriver {
     }
   }
 
+  /** Adjust keyboard brightness (0–100) */
+  setBrightness(level) {
+    this.open();
+    const packet = Buffer.alloc(PACKET_SIZE, 0);
+    packet[0] = 0x00;
+    packet[1] = 0xA7;  // brightness command
+    packet[4] = 0x01;
+    packet[5] = Math.max(0, Math.min(100, Math.round(level)));
+    if (this.dryRun) { console.log('[DRY RUN] setBrightness', packet[5]); return; }
+    this.device.write([...packet]);
+  }
+
   /** Update any number of keys in one USB send */
   setKeys(updates) {
     // updates: [{ index, r, g, b }, ...]

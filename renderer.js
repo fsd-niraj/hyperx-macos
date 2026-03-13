@@ -153,14 +153,11 @@ const NAV_ROWS = [
 function buildSection(rows) {
   const section = document.createElement('div');
   section.className = 'kb-section';
-
   for (const row of rows) {
     const rowEl = document.createElement('div');
     rowEl.className = 'kb-row';
-
     for (const item of row) {
       if (item.gap !== undefined) {
-        // Visual spacer between key groups
         const sp = document.createElement('div');
         sp.className = 'kb-gap';
         sp.style.width = px(item.gap) + 'px';
@@ -175,10 +172,8 @@ function buildSection(rows) {
         rowEl.appendChild(key);
       }
     }
-
     section.appendChild(rowEl);
   }
-
   return section;
 }
 
@@ -187,11 +182,170 @@ keyboard.appendChild(buildSection(MAIN_ROWS));
 keyboard.appendChild(buildSection(NAV_ROWS));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Selection + color state
+// Color utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+function hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  return {
+    r: parseInt(hex.slice(0, 2), 16),
+    g: parseInt(hex.slice(2, 4), 16),
+    b: parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+
+function hsvToHex(h, s, v) {
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  let r, g, b;
+  if      (h < 60)  [r,g,b] = [c,x,0];
+  else if (h < 120) [r,g,b] = [x,c,0];
+  else if (h < 180) [r,g,b] = [0,c,x];
+  else if (h < 240) [r,g,b] = [0,x,c];
+  else if (h < 300) [r,g,b] = [x,0,c];
+  else              [r,g,b] = [c,0,x];
+  return rgbToHex((r+m)*255, (g+m)*255, (b+m)*255);
+}
+
+function hexToHsv(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  const r1 = r/255, g1 = g/255, b1 = b/255;
+  const max = Math.max(r1,g1,b1), min = Math.min(r1,g1,b1), d = max - min;
+  let h = 0;
+  if (d) {
+    if      (max === r1) h = ((g1-b1)/d % 6 + 6) % 6;
+    else if (max === g1) h = (b1-r1)/d + 2;
+    else                 h = (r1-g1)/d + 4;
+    h *= 60;
+  }
+  return { h, s: max ? d/max : 0, v: max };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Color Wheel
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CW = {
+  H: 0, S: 1, V: 1,
+  SIZE: 160, RING_W: 15,
+  SQ: 70,   // SV square side length
+  _drag: null,
+
+  get cx()  { return this.SIZE / 2; },
+  get cy()  { return this.SIZE / 2; },
+  get outerR() { return this.SIZE / 2 - 3; },
+  get innerR() { return this.outerR - this.RING_W; },
+  get sqX()  { return this.cx - this.SQ / 2; },
+  get sqY()  { return this.cy - this.SQ / 2; },
+
+  init(canvas) {
+    this.canvas = canvas;
+    this.ctx    = canvas.getContext('2d');
+    this.draw();
+    canvas.addEventListener('mousedown', e => this._down(e));
+    document.addEventListener('mousemove', e => this._move(e));
+    document.addEventListener('mouseup',  () => { this._drag = null; });
+  },
+
+  draw() {
+    const { ctx, cx, cy, outerR, innerR, RING_W, H, S, V, sqX, sqY, SQ, SIZE } = this;
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    // Hue ring
+    for (let deg = 0; deg < 360; deg++) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, outerR, (deg - 0.5) * Math.PI/180, (deg + 1.5) * Math.PI/180);
+      ctx.closePath();
+      ctx.fillStyle = `hsl(${deg},100%,50%)`;
+      ctx.fill();
+    }
+    // Cut centre hole
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerR - 1, 0, 2*Math.PI);
+    ctx.fillStyle = '#1c1c1c';
+    ctx.fill();
+
+    // SV square — hue base + white overlay + black overlay
+    ctx.fillStyle = `hsl(${H},100%,50%)`;
+    ctx.fillRect(sqX, sqY, SQ, SQ);
+    const gW = ctx.createLinearGradient(sqX, 0, sqX + SQ, 0);
+    gW.addColorStop(0, '#fff'); gW.addColorStop(1, 'transparent');
+    ctx.fillStyle = gW; ctx.fillRect(sqX, sqY, SQ, SQ);
+    const gB = ctx.createLinearGradient(0, sqY, 0, sqY + SQ);
+    gB.addColorStop(0, 'transparent'); gB.addColorStop(1, '#000');
+    ctx.fillStyle = gB; ctx.fillRect(sqX, sqY, SQ, SQ);
+
+    // Ring handle
+    const ha = (H - 90) * Math.PI / 180;
+    const hr = innerR + RING_W / 2;
+    const hx = cx + Math.cos(ha) * hr, hy = cy + Math.sin(ha) * hr;
+    ctx.beginPath(); ctx.arc(hx, hy, 7, 0, 2*Math.PI);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = `hsl(${H},100%,50%)`; ctx.fill();
+
+    // SV handle
+    const svx = sqX + S * SQ, svy = sqY + (1 - V) * SQ;
+    ctx.beginPath(); ctx.arc(svx, svy, 6, 0, 2*Math.PI);
+    ctx.strokeStyle = V > 0.4 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 2; ctx.stroke();
+  },
+
+  getHex() { return hsvToHex(this.H, this.S, this.V); },
+
+  setHex(hex) {
+    const { h, s, v } = hexToHsv(hex);
+    this.H = h; this.S = s; this.V = v;
+    this.draw();
+  },
+
+  _pos(e) {
+    const r = this.canvas.getBoundingClientRect();
+    const scale = this.SIZE / r.width;
+    return { x: (e.clientX - r.left) * scale, y: (e.clientY - r.top) * scale };
+  },
+
+  _down(e) {
+    const { x, y } = this._pos(e);
+    const { cx, cy, innerR, outerR, sqX, sqY, SQ } = this;
+    const dist = Math.hypot(x - cx, y - cy);
+    if (dist >= innerR && dist <= outerR) {
+      this._drag = 'ring'; this._updateH(x, y);
+    } else if (x >= sqX && x <= sqX+SQ && y >= sqY && y <= sqY+SQ) {
+      this._drag = 'sv'; this._updateSV(x, y);
+    }
+  },
+
+  _move(e) {
+    if (!this._drag) return;
+    const { x, y } = this._pos(e);
+    if (this._drag === 'ring') this._updateH(x, y);
+    else                       this._updateSV(x, y);
+  },
+
+  _updateH(x, y) {
+    const a = Math.atan2(y - this.cy, x - this.cx) * 180/Math.PI + 90;
+    this.H = ((a % 360) + 360) % 360;
+    this.draw(); onWheelChange();
+  },
+
+  _updateSV(x, y) {
+    const { sqX, sqY, SQ } = this;
+    this.S = Math.max(0, Math.min(1, (x - sqX) / SQ));
+    this.V = Math.max(0, Math.min(1, 1 - (y - sqY) / SQ));
+    this.draw(); onWheelChange();
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Selection + key painting
 // ─────────────────────────────────────────────────────────────────────────────
 
 const selectedLeds = new Set();
-const keyColorMap  = new Map(); // led → '#rrggbb'
+const keyColorMap  = new Map();
 
 function getKeyEl(led) {
   return document.querySelector(`.key[data-led="${led}"]`);
@@ -201,11 +355,10 @@ function paintKey(led, hex) {
   keyColorMap.set(led, hex);
   const el = getKeyEl(led);
   if (!el) return;
-  el.style.background = hex;
+  el.style.background  = hex;
   el.style.borderColor = hex;
-  // Auto-contrast label
   const { r, g, b } = hexToRgb(hex);
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
   el.style.color = lum > 0.45 ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.45)';
 }
 
@@ -220,132 +373,145 @@ function deselectAll() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Key click handlers
+// Key click / keydown — toggle selection
 // ─────────────────────────────────────────────────────────────────────────────
 
 document.querySelectorAll('.key').forEach(el => {
   el.addEventListener('click', e => {
     e.stopPropagation();
     const led = parseInt(el.dataset.led);
-
     if (selectedLeds.has(led)) {
-      // Deselect
-      selectedLeds.delete(led);
-      el.classList.remove('selected');
+      selectedLeds.delete(led); el.classList.remove('selected');
     } else {
-      // Add to selection and sync picker to this key's current color
       selectKey(led, el);
-      document.getElementById('color-picker').value = keyColorMap.get(led) || '#000000';
+      CW.setHex(keyColorMap.get(led) || '#000000');
+      syncHexUI(CW.getHex());
     }
   });
 });
 
-// Click on keyboard background → deselect all
 keyboard.addEventListener('click', () => deselectAll());
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Physical key press → toggle selection (same as clicking the key in the UI)
-// ─────────────────────────────────────────────────────────────────────────────
-
 const CODE_TO_LED = {
-  // Fn row
-  Escape: 0,
-  F1: 1,  F2: 2,  F3: 3,  F4: 4,
-  F5: 5,  F6: 6,  F7: 7,  F8: 48,
-  F9: 49, F10: 50, F11: 51, F12: 52,
-  PrintScreen: 53, ScrollLock: 54, Pause: 55,
-  // Number row
-  Backquote: 8,
-  Digit1: 9, Digit2: 10, Digit3: 11, Digit4: 12,
-  Digit5: 13, Digit6: 14, Digit7: 15, Digit8: 16,
-  Digit9: 56, Digit0: 57, Minus: 58, Equal: 59, Backspace: 60,
-  Insert: 61, Home: 62, PageUp: 63,
-  // QWERTY row
-  Tab: 17,
-  KeyQ: 18, KeyW: 19, KeyE: 20, KeyR: 21, KeyT: 22,
-  KeyY: 23, KeyU: 24, KeyI: 64, KeyO: 65, KeyP: 66,
-  BracketLeft: 67, BracketRight: 68, Backslash: 69,
-  Delete: 70, End: 71, PageDown: 72,
-  // Home row
-  CapsLock: 25,
-  KeyA: 26, KeyS: 27, KeyD: 28, KeyF: 29, KeyG: 30,
-  KeyH: 31, KeyJ: 32, KeyK: 73, KeyL: 74,
-  Semicolon: 75, Quote: 76, Enter: 77,
-  // Shift row
-  ShiftLeft: 33,
-  KeyZ: 34, KeyX: 35, KeyC: 36, KeyV: 37, KeyB: 38,
-  KeyN: 39, KeyM: 40, Comma: 79, Period: 80, Slash: 81,
-  ShiftRight: 82, ArrowUp: 85,
-  // Bottom row
-  ControlLeft: 41, MetaLeft: 42, AltLeft: 43,
-  Space: 45,
-  AltRight: 86, ControlRight: 88,
-  ArrowLeft: 90, ArrowDown: 91, ArrowRight: 92,
+  Escape:0, F1:1, F2:2, F3:3, F4:4, F5:5, F6:6, F7:7, F8:48,
+  F9:49, F10:50, F11:51, F12:52, PrintScreen:53, ScrollLock:54, Pause:55,
+  Backquote:8, Digit1:9, Digit2:10, Digit3:11, Digit4:12, Digit5:13,
+  Digit6:14, Digit7:15, Digit8:16, Digit9:56, Digit0:57, Minus:58, Equal:59,
+  Backspace:60, Insert:61, Home:62, PageUp:63,
+  Tab:17, KeyQ:18, KeyW:19, KeyE:20, KeyR:21, KeyT:22, KeyY:23, KeyU:24,
+  KeyI:64, KeyO:65, KeyP:66, BracketLeft:67, BracketRight:68, Backslash:69,
+  Delete:70, End:71, PageDown:72,
+  CapsLock:25, KeyA:26, KeyS:27, KeyD:28, KeyF:29, KeyG:30,
+  KeyH:31, KeyJ:32, KeyK:73, KeyL:74, Semicolon:75, Quote:76, Enter:77,
+  ShiftLeft:33, KeyZ:34, KeyX:35, KeyC:36, KeyV:37, KeyB:38, KeyN:39,
+  KeyM:40, Comma:79, Period:80, Slash:81, ShiftRight:82, ArrowUp:85,
+  ControlLeft:41, MetaLeft:42, AltLeft:43, Space:45,
+  AltRight:86, ControlRight:88, ArrowLeft:90, ArrowDown:91, ArrowRight:92,
 };
 
 document.addEventListener('keydown', e => {
   const led = CODE_TO_LED[e.code];
   if (led === undefined) return;
-
   e.preventDefault();
-
   const el = getKeyEl(led);
   if (!el) return;
-
   if (selectedLeds.has(led)) {
-    selectedLeds.delete(led);
-    el.classList.remove('selected');
+    selectedLeds.delete(led); el.classList.remove('selected');
   } else {
     selectKey(led, el);
-    document.getElementById('color-picker').value = keyColorMap.get(led) || '#000000';
+    CW.setHex(keyColorMap.get(led) || '#000000');
+    syncHexUI(CW.getHex());
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Color picker → apply to selected keys
+// Color wheel → live preview + debounced send + clear on send
 // ─────────────────────────────────────────────────────────────────────────────
 
 let sendDebounce = null;
 
-document.getElementById('color-picker').addEventListener('input', e => {
+function onWheelChange() {
+  const hex = CW.getHex();
+  syncHexUI(hex);
   if (selectedLeds.size === 0) return;
-  const hex = e.target.value;
-
-  // Update visuals immediately
   for (const led of selectedLeds) paintKey(led, hex);
-
-  // Debounce the USB send so we don't flood while dragging the picker
   clearTimeout(sendDebounce);
-  sendDebounce = setTimeout(() => sendSelectedKeys(hex), 80);
-});
+  sendDebounce = setTimeout(() => sendAndClear(hex), 80);
+}
 
-async function sendSelectedKeys(hex) {
+async function sendAndClear(hex) {
   if (selectedLeds.size === 0) return;
   const { r, g, b } = hexToRgb(hex);
   const updates = [...selectedLeds].map(index => ({ index, r, g, b }));
+  deselectAll();                                        // ← #1: clear selection
   const result = await window.hyperx.setKeys(updates);
   if (!result.ok) setStatus(result.error, 'error');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Controls
+// Hex input + color preview
+// ─────────────────────────────────────────────────────────────────────────────
+
+const hexInput    = document.getElementById('hex-input');
+const colorPreview = document.getElementById('color-preview');
+
+function syncHexUI(hex) {
+  hexInput.value            = hex;
+  colorPreview.style.background = hex;
+}
+
+hexInput.addEventListener('change', () => {
+  let v = hexInput.value.trim();
+  if (!v.startsWith('#')) v = '#' + v;
+  if (!/^#[0-9a-fA-F]{6}$/.test(v)) return;
+  CW.setHex(v);
+  syncHexUI(v);
+  onWheelChange();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Preset swatches
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PRESETS = [
+  '#FF0000', '#FF6600',
+  '#FFFF00', '#00FF00',
+  '#00FFFF', '#0055FF',
+  '#8800FF', '#FF00FF',
+];
+
+const presetsEl = document.getElementById('presets');
+PRESETS.forEach(color => {
+  const sw = document.createElement('div');
+  sw.className = 'swatch';
+  sw.style.background = color;
+  sw.title = color;
+  sw.addEventListener('click', () => {
+    CW.setHex(color);
+    syncHexUI(color);
+    onWheelChange();
+  });
+  presetsEl.appendChild(sw);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Buttons + brightness
 // ─────────────────────────────────────────────────────────────────────────────
 
 const statusEl = document.getElementById('status');
+function setStatus(msg, type = '') { statusEl.textContent = msg; statusEl.className = type; }
 
-function setStatus(msg, type = '') {
-  statusEl.textContent = msg;
-  statusEl.className = type;
-}
+// #2: Apply to Selected — explicit button
+document.getElementById('btn-apply-selected').onclick = async () => {
+  if (selectedLeds.size === 0) { setStatus('No keys selected.'); return; }
+  await sendAndClear(CW.getHex());
+  setStatus('Applied to selected keys.', 'ok');
+};
 
 document.getElementById('btn-apply-all').onclick = async () => {
-  const hex = document.getElementById('color-picker').value;
-  const rgb = hexToRgb(hex);
-  // Paint all keys visually
-  document.querySelectorAll('.key').forEach(el => {
-    paintKey(parseInt(el.dataset.led), hex);
-  });
-  const result = await window.hyperx.setAll(rgb);
+  const hex = CW.getHex();
+  document.querySelectorAll('.key').forEach(el => paintKey(parseInt(el.dataset.led), hex));
+  const result = await window.hyperx.setAll(hexToRgb(hex));
   result.ok ? setStatus('Applied to all keys.', 'ok') : setStatus(result.error, 'error');
 };
 
@@ -357,11 +523,13 @@ document.getElementById('btn-diagnose').onclick = async () => {
             result.sendTest.ok ? 'ok' : 'error');
 };
 
-function hexToRgb(hex) {
-  hex = hex.replace('#', '');
-  return {
-    r: parseInt(hex.slice(0, 2), 16),
-    g: parseInt(hex.slice(2, 4), 16),
-    b: parseInt(hex.slice(4, 6), 16),
-  };
-}
+document.getElementById('brightness').addEventListener('input', e => {
+  window.hyperx.setBrightness ? window.hyperx.setBrightness(Number(e.target.value)) : null;
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+
+CW.init(document.getElementById('color-wheel'));
+syncHexUI(CW.getHex());

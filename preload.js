@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('hyperx', {
   setAll: (rgb) => ipcRenderer.invoke('set-all', rgb),
   setKey: (index, rgb) => ipcRenderer.invoke('set-key', { index, rgb }),
   setKeys: (updates) => ipcRenderer.invoke('set-keys', updates),
+  setBrightness: (level) => ipcRenderer.invoke('set-brightness', level),
   diagnose: () => ipcRenderer.invoke('diagnose'),
 });
 
