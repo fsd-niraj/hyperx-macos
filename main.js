@@ -3,6 +3,10 @@ const path = require('path');
 const HyperX = require('./driver/hyperx.js');
 const HyperXUsbDriver = require('./driver/hyperx-usb.js');
 
+// Prevent Chromium from throttling timers in the renderer when the window
+// is in the background, so LED effect sends continue at full rate.
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+
 let win;
 const driver = new HyperXUsbDriver({ dryRun: false });
 
