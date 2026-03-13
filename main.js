@@ -44,8 +44,12 @@ ipcMain.handle('set-key', async (_, { index, rgb }) => {
 });
 
 ipcMain.handle('set-brightness', (_, level) => {
-  try { driver.setBrightness(level); return { ok: true }; }
-  catch (err) { return { ok: false, error: err.message }; }
+  try {
+    driver.setBrightness(level);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 ipcMain.handle('set-keys', (_, updates) => {
